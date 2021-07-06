@@ -1,0 +1,140 @@
+---
+# Configure the internal domain name of the cluster here.
+cluster_base_domain: "africa.nedcor.net"
+cluster_domain_name: "{{ cluster_name }}.{{ cluster_base_domain }}"
+cluster_name: "ocponz"
+
+# The URL of of the archive containing the
+# RHCOS kernel, initramfs, and disk images
+rhcos_version: "4.6.8-s390x"
+#rhcos_download_url: "https://mirror.openshift.com/pub/openshift-v4/s390x/dependencies/rhcos/pre-release/4.2.0-0.nightly-s390x-2019-11-26-152324/"
+rhcos_download_url: "https://mirror.openshift.com/pub/openshift-v4/s390x/dependencies/rhcos/4.6/latest"
+#rhcos_download_url: "file:///root/install/4.6.8"
+
+# The download URL of the openshift-install binary
+#openshift_install_binary_url: "https://mirror.openshift.com/pub/openshift-v4/s390x/clients/ocp-dev-preview/4.6.0-0.nightly-s390x-2020-10-02-202613/openshift-install-linux-4.6.0-0.nightly-s390x-2020-10-02-202613.tar.gz"
+openshift_install_binary_url: "https://mirror.openshift.com/pub/openshift-v4/s390x/clients/ocp/4.6.8/openshift-install-linux-4.6.8.tar.gz"
+#openshift_install_binary_url: "file:///root/install/4.6.8/openshift-install-linux-4.6.8.tar.gz"
+
+# The public DNS server to use.  This should be
+# changed to a DNS server on your intranet.
+dns_nameserver: 10.11.5.1
+
+# The IP address of the local network
+# gateway, and the netmask/cidr of
+# the subnet
+subnet_gateway: 10.7.17.254
+subnet_netmask: 255.255.255.0
+subnet_cidr: 10.7.17.0/24
+subnet_in_addr_name: "{{ subnet_cidr.split('.')[:3] | reverse | join('.') }}"
+
+# This is the IP address of the bastion which the
+# cluster nodes can see.
+bastion_private_ip_address: 10.59.79.45
+# This is the IP address of the bastion
+# when the bastion is configures as a dhcp
+# server.  Otherwise it is ignored.
+dhcp_server_ip_address: 10.59.79.45
+
+# z/VM kernel parameters
+# User must supply zvm rd.znet device id
+# based on their own environment.
+# example:
+#zvm_rd_znet: "qeth,0.0.0d20,0.0.0d21,0.0.0d22,layer2=1,portno=0"
+zvm_rd_znet: "rd.znet=qeth,0.0.0620,0.0.0621,0.0.0622,layer2=1,portno=0"
+# User must supply zvm rd.dasd device id kernel arg.
+# This is the device to install coreos to.
+# WARNING - using the wrong device id could result in loss of data.  The
+# device used in this example is not necessarily correct for your
+# environment.
+# example:
+# "rd.dasd=0.0.0120"
+#rd.dasd: "0.0.0100"
+#zvm_rd_zfcp: "0.0.0030,0x500507680B26A589,0x0000000000000000"
+zvm_rd_zfcp: "rd.zfcp=0.0.0050,0x5005076810110FA9,0x0000000000000000"
+
+coreos_kargs_net:
+  zvm: "ip={{ cluster_nodes[coreos_role][item].ip }}::{{ subnet_gateway }}:{{ subnet_netmask }}:::none nameserver={{ bastion_private_ip_address }} {{ zvm_rd_znet }}"
+
+coreos_kargs_extra:
+  zvm:  "{{ zvm_rd_zfcp }}"
+
+dev_disk:
+  zvm: sda
+# zvm: dasda
+
+# This is the default node configuration.
+# Please ensure the MAC addresses are
+# correct for the hardware you are deploying to.
+# The IP addresses must be on the same subnet as
+# the {{ cluster_subnet_prefix }}
+# CHANGEME!
+cluster_nodes:
+  bootstrap:
+    bootstrap-0:
+      mac: '02:0F:C1:BC:DE:F1'
+      ip: '10.59.79.37'
+      disk: "{{ dev_disk[install_mode] }}"
+      ign_profile: bootstrap.ign
+  masters:
+    master-0:
+      mac: '02:0F:C1:BC:DE:F2'
+      ip: '10.59.79.38'
+      disk: "{{ dev_disk[install_mode] }}"
+      ign_profile: master.ign
+    master-1:
+      mac: '02:0F:C1:BC:DE:F3'
+      ip: '10.59.79.39'
+      disk: "{{ dev_disk[install_mode] }}"
+      ign_profile: master.ign
+    master-2:
+      mac: '02:0F:C1:BC:DE:F4'
+      ip: '10.59.79.40'
+      disk: "{{ dev_disk[install_mode] }}"
+      ign_profile: master.ign
+  workers:
+    worker-0:
+      mac: '02:0F:C1:BC:DE:F5'
+      ip: '10.59.79.41'
+      disk: "{{ dev_disk[install_mode] }}"
+      ign_profile: worker.ign
+    worker-1:
+      mac: '02:0F:C1:BC:DE:F6'
+      ip: '10.59.79.42'
+      disk: "{{ dev_disk[install_mode] }}"
+      ign_profile: worker.ign
+    worker-2:
+      mac: '02:0F:C1:BC:DE:F7'
+      ip: '10.59.79.43'
+      disk: "{{ dev_disk[install_mode] }}"
+      ign_profile: worker.ign
+
+# The following variables should generally not need to be edited
+
+install_mode: zvm
+
+# This will be the same as the bastion private ip when
+# bastion is a separate VM, otherwise it is the gateway ip.
+# dhcp_server_ip_address is not used by default in a z/VM install
+bastion_public_ip_address: "{{ ansible_default_ipv4.address }}"
+
+# pxe_mode (grub, pxelinux)
+# use pxelinux mode for zvm to generate
+# parmfiles, then punch and IPL manually
+pxe_mode: pxelinux
+
+ocp4_pull_secret: "{{ lookup('file', '~/.ocp4_pull_secret') | from_json }}"
+
+rhcos_disk_type:
+         zvm: metal-dasd
+
+rhcos_installer_initramfs: 'rhcos-{{ rhcos_version }}-live-initramfs.s390x.img'
+rhcos_installer_kernel: 'rhcos-{{ rhcos_version }}-live-kernel-s390x'
+rhcos_installer_rootfs: 'rhcos-{{ rhcos_version }}-live-rootfs.s390x.img'
+#rhcos_disk_image: 'rhcos-{{ rhcos_version }}-{{ rhcos_disk_type[install_mode] }}.raw.gz'
+#rhcos_disk_image: 'rhcos-{{ rhcos_version }}-live-rootfs.s390x.img'
+
+rhcos_download_files:
+  - '{{ rhcos_installer_initramfs }}'
+  - '{{ rhcos_installer_kernel }}'
+  - '{{ rhcos_installer_rootfs }}'
